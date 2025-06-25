@@ -192,3 +192,9 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Resultados para reporte
+.resultados/*
+
+# Datos originales
+.data/20250617-EstadioAlfredo-1.csv
