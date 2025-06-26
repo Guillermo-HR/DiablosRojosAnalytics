@@ -194,7 +194,7 @@ cython_debug/
 .cursorindexingignore
 
 # Resultados para reporte
-.resultados/*
+reporte/*
 
 # Datos originales
-.data/20250617-EstadioAlfredo-1.csv
+data/20250617-EstadioAlfredo-1.csv
