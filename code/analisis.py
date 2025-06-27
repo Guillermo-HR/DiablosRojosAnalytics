@@ -304,15 +304,15 @@ def saveDistribucionLanzamientos(distribucionLanzamientos, atBats, rutaCSV, ruta
             nombre = pitcher.replace(' ', '').replace('.', '').strip()
             if lado == 'Total':
                 subRuta = '/distribucionPitcheo/total/distribucion{0}{1}'
-                titulo = 'Distribución de {0} de {1}'
+                titulo = 'Distribución de {0}'
                 dfPos = atBats[(atBats['Pitcher'] == pitcher)]
             elif lado == 'Left':
                 subRuta = '/distribucionPitcheo/left/distribucionVsZurdos{0}{1}'
-                titulo = 'Distribución de {0} de {1} vs bateadores izquierdos'
+                titulo = 'Distribución de {0} vs bateadores izquierdos'
                 dfPos = atBats[(atBats['Pitcher'] == pitcher) & (atBats['BatterSide'] == 'Left')]
             else:
                 subRuta = '/distribucionPitcheo/right/distribucionVsDerechos{0}{1}'
-                titulo = 'Distribución de {0} de {1} vs bateadores derechos'
+                titulo = 'Distribución de {0} vs bateadores derechos'
                 dfPos = atBats[(atBats['Pitcher'] == pitcher) & (atBats['BatterSide'] == 'Right')]
 
             df = distribucionLanzamientos[
@@ -324,7 +324,7 @@ def saveDistribucionLanzamientos(distribucionLanzamientos, atBats, rutaCSV, ruta
             distribucionImg = graficarDistribucionLanzamientos(
                 dfDist=df.rename(columns={'Porcentaje de uso': 'Porcentaje', 'Uso': 'Total'}),
                 dfPos=dfPos,
-                titulo=titulo.format('Lanzamientos', pitcher)
+                titulo=titulo.format('Lanzamientos')
             )
             if distribucionImg is not None:
                 distribucionImg.savefig(f'{rutaIMG}{subRuta.format('', nombre)}.png', bbox_inches='tight', dpi=300)
@@ -334,7 +334,7 @@ def saveDistribucionLanzamientos(distribucionLanzamientos, atBats, rutaCSV, ruta
                 dfPos=dfPos[(dfPos['PitchCall'].str.startswith('Strike')) |
                             (dfPos['PitchCall'].str.startswith('FoulBall')) |
                             (dfPos['PitchCall'].str.startswith('InPlay'))],
-                titulo=titulo.format('Strikes', pitcher)
+                titulo=titulo.format('Strikes')
             )
             if distribucionStrikesImg is not None:
                 distribucionStrikesImg.savefig(f'{rutaIMG}{subRuta.format('Strikes', nombre)}.png', bbox_inches='tight', dpi=300)
@@ -342,7 +342,7 @@ def saveDistribucionLanzamientos(distribucionLanzamientos, atBats, rutaCSV, ruta
             distribucionPonchesImg = graficarDistribucionLanzamientos(
                 dfDist=df.rename(columns={'Ponches %': 'Porcentaje', 'PonchesPorTipo': 'Total'}),
                 dfPos=dfPos[dfPos['KorBB'].str.startswith('Strikeout')],
-                titulo=titulo.format('Ponches', pitcher)
+                titulo=titulo.format('Ponches')
             )
             if distribucionPonchesImg is not None:
                 distribucionPonchesImg.savefig(f'{rutaIMG}{subRuta.format('Ponches', nombre)}.png', bbox_inches='tight', dpi=300)
@@ -350,7 +350,7 @@ def saveDistribucionLanzamientos(distribucionLanzamientos, atBats, rutaCSV, ruta
             distribucionBolasImg = graficarDistribucionLanzamientos(
                 dfDist=df.rename(columns={'Bolas %': 'Porcentaje', 'BolasPorTipo': 'Total'}),
                 dfPos=dfPos[dfPos['PitchCall'].str.startswith('Ball')],
-                titulo=titulo.format('Bolas', pitcher)
+                titulo=titulo.format('Bolas')
             )
             if distribucionBolasImg is not None:
                 distribucionBolasImg.savefig(f'{rutaIMG}{subRuta.format('Bolas', nombre)}.png', bbox_inches='tight', dpi=300)
@@ -400,7 +400,7 @@ def saveSituacionPitcher(situacion, rutaIMG, tipo):
     for pitcher in pitchers:
         nombre = pitcher.replace(' ', '').replace('.', '').strip()
         subRuta = f'/situacion{tipo}/situacion{tipo}{nombre}.png'
-        titulo = f'Situaciónes de {tipo} de {pitcher}'
+        titulo = f'Control situaciones de {tipo}'
         temp = situacion[situacion['Pitcher'] == pitcher].reset_index(drop=True)
         total = int(temp['Total'].to_numpy()[0])
         temp = temp.drop(columns=['Total', 'Pitcher']).T.rename(columns={0: 'Porcentaje'})
