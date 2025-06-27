@@ -45,6 +45,7 @@ def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
     colores = {'FF': '#001219', 'Sinker': '#005F73', 'Cutter': '#0A9396', 'Slider': '#94D2BD',
                'ChangeUp': '#E9D8A6', 'Splitter': '#EE9B00', 'Curveball': '#CA6702', 'Fastball': '#BB3E03',
                'Sweeper': '#9B2226'}
+    dfDist = dfDist[dfDist['Porcentaje'] > 0].reset_index(drop=True)
     tipos = dfDist['Tipo lanzamiento'].unique().tolist()
     nTipos = len(tipos)
     columns = 5
@@ -61,11 +62,12 @@ def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
     ax1 = fig.add_subplot(gs[0, 0])
     plot = ax1.pie(
         dfDist['Porcentaje'], 
-        autopct='%1.1f%%', startangle=90,
+        startangle=90,
         colors=dfDist['Tipo lanzamiento'].map(colores).to_list(),
         wedgeprops=dict(width=0.3),
         radius=0.7,
-        pctdistance=1.4
+        pctdistance=1.4,
+        labels=None
     )
     ax1.text(
         0, 0,
@@ -73,11 +75,13 @@ def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
         ha='center', va='center',
         fontsize=12, weight='bold'
     )
-    ax1.legend(plot[0], dfDist['Tipo lanzamiento'],
-          loc="lower center",
-          ncol=3,
-          frameon=False,
-          fontsize='small'
+    ax1.legend(
+        plot[0], 
+        [f"{l} ({p:.1f}%)" for l, p in zip(dfDist['Tipo lanzamiento'], dfDist['Porcentaje'])],
+        loc="lower center",
+        ncol=2,
+        frameon=False,
+        fontsize='small'
     )
     
     for i in range(rows):
@@ -102,8 +106,8 @@ def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
             )
             ax.set_title(tipo, fontsize=12, y=-0.1)
 
-    fig.suptitle(titulo, fontsize=16, y=0.95)
-    fig.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.9)
+    fig.suptitle(titulo, fontsize=16, y=0.95, x=0.2)
+    fig.subplots_adjust(left=0.05, right=0.95, bottom=0.03, top=0.9)
 
     plt.close()
     return fig
@@ -324,20 +328,20 @@ if __name__ == '__main__':
 
     atBats, pitchers, bateadores = leerDatos(rutaTrackman, rutaBateadores, rutaPitchers)
 
-    saveLineUp(bateadores['home'], rutaCSV, 'home')
-    saveLineUp(bateadores['away'], rutaCSV, 'away')
+    #saveLineUp(bateadores['home'], rutaCSV, 'home')
+    #saveLineUp(bateadores['away'], rutaCSV, 'away')
 
-    savePitchers(pitchers['home'], atBats['away'], rutaCSV, 'home')
-    savePitchers(pitchers['away'], atBats['home'], rutaCSV, 'away')
+    #savePitchers(pitchers['home'], atBats['away'], rutaCSV, 'home')
+    #savePitchers(pitchers['away'], atBats['home'], rutaCSV, 'away')
 
     lineaPitcheo = {}
     lineaPitcheo['home'] = getLineaPitcheo(pitchers['home'], atBats['away'])
     lineaPitcheo['away'] = getLineaPitcheo(pitchers['away'], atBats['home'])
-    saveLineaPitcheo(lineaPitcheo['home'], rutaCSV)
-    saveLineaPitcheo(lineaPitcheo['away'], rutaCSV)
+    #saveLineaPitcheo(lineaPitcheo['home'], rutaCSV)
+    #saveLineaPitcheo(lineaPitcheo['away'], rutaCSV)
 
     distribucionLanzamientos = {}
     distribucionLanzamientos['home'] = getDistribucionLanzamientos(lineaPitcheo['home'], atBats['away'])
     distribucionLanzamientos['away'] = getDistribucionLanzamientos(lineaPitcheo['away'], atBats['home'])
-    saveDistribucionLanzamientos(distribucionLanzamientos['home'], atBats['away'], rutaCSV, rutaIMG)
-    saveDistribucionLanzamientos(distribucionLanzamientos['away'], atBats['home'], rutaCSV, rutaIMG)
+    #saveDistribucionLanzamientos(distribucionLanzamientos['home'], atBats['away'], rutaCSV, rutaIMG)
+    #saveDistribucionLanzamientos(distribucionLanzamientos['away'], atBats['home'], rutaCSV, rutaIMG)
