@@ -319,6 +319,81 @@ def saveDistribucionLanzamientos(distribucionLanzamientos, atBats, rutaCSV, ruta
             if distribucionBolasImg is not None:
                 distribucionBolasImg.savefig(f'{rutaIMG}{subRuta.format('Bolas', nombre)}.png', bbox_inches='tight', dpi=300)
 
+def getSituacionRiesgo(atBats):
+    resultadoSituacionRiesgo = pd.merge(
+        atBats[
+            (atBats['Balls'] == 3) & (atBats['Strikes'] == 0)
+        ][['Inning', 'PAofInning', 'Pitcher']],
+        atBats[['Inning', 'PAofInning', 'PitchCall', 'KorBB', 'PlayResult']],
+        on=['Inning', 'PAofInning']
+    ).groupby(['Inning', 'PAofInning']).last().reset_index()
+
+    resultadoSituacionRiesgo['Resultado'] = np.where(
+        resultadoSituacionRiesgo['KorBB'] == 'Strikeout', 'Ponche',
+        np.where(resultadoSituacionRiesgo['KorBB'] == 'Walk', 'Base por bolas',
+        np.where(resultadoSituacionRiesgo['PitchCall'] == 'HitByPitch', 'Base por golpe', 
+        np.where((resultadoSituacionRiesgo['PlayResult'] == 'Single') |
+                (resultadoSituacionRiesgo['PlayResult'] == 'Double') |
+                (resultadoSituacionRiesgo['PlayResult'] == 'Triple') |
+                (resultadoSituacionRiesgo['PlayResult'] == 'HomeRun'), 'Hit',
+        np.where(resultadoSituacionRiesgo['PlayResult'] == 'Out', 'Out',
+        np.where(resultadoSituacionRiesgo['PlayResult'] == 'Error', 'Error', 
+        np.where(resultadoSituacionRiesgo['PlayResult'] == 'FieldersChoice', 'Bola ocupada', 
+        np.where(resultadoSituacionRiesgo['PlayResult'] == 'Sacrifice', 'Sacrificio', '')
+        ))))))
+    )
+
+    resultadoSituacionRiesgo = resultadoSituacionRiesgo[['Pitcher', 'Resultado']]
+    resultadoSituacionRiesgo = pd.get_dummies(resultadoSituacionRiesgo, columns=['Resultado'], dtype=int)
+    resultadoSituacionRiesgo['Total'] = resultadoSituacionRiesgo.groupby(['Pitcher'])['Pitcher'].transform('count')
+    resultadoSituacionRiesgo = resultadoSituacionRiesgo.groupby('Pitcher').apply(lambda x: round(x.mean()*100, 1)).reset_index()
+    resultadoSituacionRiesgo['Total'] = resultadoSituacionRiesgo['Total']/100
+    newColumns = [x.replace('Resultado_', '') for x in resultadoSituacionRiesgo.columns]
+    resultadoSituacionRiesgo = resultadoSituacionRiesgo.rename(columns=dict(zip(resultadoSituacionRiesgo.columns, newColumns)))
+
+    return resultadoSituacionRiesgo
+
+def saveSituacionRiesgo(situacionRiesgo, rutaIMG):
+    pitchers = situacionRiesgo['Pitcher'].unique().tolist()
+    for pitcher in pitchers:
+        nombre = pitcher.replace(' ', '').replace('.', '').strip()
+        subRuta = f'/situacionRiesgo/situacionRiesgo{nombre}.png'
+        titulo = f'Situaciónes de riesgo de {pitcher}'
+        temp = situacionRiesgo[situacionRiesgo['Pitcher'] == pitcher].reset_index(drop=True)
+        total = int(temp['Total'].to_numpy()[0])
+        temp = temp.drop(columns=['Total', 'Pitcher']).T.rename(columns={0: 'Porcentaje'})
+        temp = temp[temp['Porcentaje'] > 0].reset_index()
+
+        fig, ax = plt.subplots(figsize=(5.1, 3))
+        plot = ax.pie(
+            temp['Porcentaje'], 
+            startangle=90,
+            wedgeprops=dict(width=0.3),
+            radius=0.7,
+            pctdistance=1.4,
+            labels=None
+        )
+        ax.text(
+            0, 0,
+            total,
+            ha='center', va='center',
+            fontsize=12, weight='bold'
+        )
+        ax.legend(
+            plot[0], 
+            [f"{l} ({p:.1f}%)" for l, p in zip(temp['index'], temp['Porcentaje'])],
+            loc="lower center",
+            ncol=2,
+            frameon=False,
+            fontsize='small'
+        )
+
+        fig.suptitle(titulo, fontsize=16, y=0.95, x=0.2)
+        plt.subplots_adjust(left=0.3)
+
+        plt.close()
+        fig.savefig(f'{rutaIMG}{subRuta}', bbox_inches='tight', dpi=300)
+
 if __name__ == '__main__':
     rutaTrackman = 'data/20250617-EstadioAlfredo-1.csv'
     rutaBateadores = 'data/bateadores.csv'
@@ -345,3 +420,9 @@ if __name__ == '__main__':
     distribucionLanzamientos['away'] = getDistribucionLanzamientos(lineaPitcheo['away'], atBats['home'])
     #saveDistribucionLanzamientos(distribucionLanzamientos['home'], atBats['away'], rutaCSV, rutaIMG)
     #saveDistribucionLanzamientos(distribucionLanzamientos['away'], atBats['home'], rutaCSV, rutaIMG)
+
+    situacionRiesgo = {}
+    situacionRiesgo['home'] = getSituacionRiesgo(atBats['away'])
+    situacionRiesgo['away'] = getSituacionRiesgo(atBats['home'])
+    saveSituacionRiesgo(situacionRiesgo['home'], rutaIMG)
+    saveSituacionRiesgo(situacionRiesgo['away'], rutaIMG)
