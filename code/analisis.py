@@ -38,7 +38,13 @@ def graficarZonaStrike(ax=None, sz_top=3.5, sz_bot=1.5, vistaCatcher=True):
     return ax
 
 def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
-    colores = {'FF': '#005F73', 'Curveball': '#94D2BD', 'Splitter': '#EE9B00', 'Slider': '#BB3E03'}
+    if dfDist.empty:
+        return None
+    if dfDist['Porcentaje'].sum() == 0:
+        return None
+    colores = {'FF': '#001219', 'Sinker': '#005F73', 'Cutter': '#0A9396', 'Slider': '#94D2BD',
+               'ChangeUp': '#E9D8A6', 'Splitter': '#EE9B00', 'Curveball': '#CA6702', 'Fastball': '#BB3E03',
+               'Sweeper': '#9B2226'}
     tipos = dfDist['Tipo lanzamiento'].unique().tolist()
     nTipos = len(tipos)
     columns = 5
@@ -81,7 +87,7 @@ def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
             tipo = tipos[(columns-1)*(i)+(j-1)]
             ax = fig.add_subplot(gs[i, j])
             graficarZonaStrike(ax=ax)
-            try:
+            if len(dfPos[dfPos['TaggedPitchType'] == tipo]) > 5:
                 sns.kdeplot(
                     data=dfPos[dfPos['TaggedPitchType'] == tipo],
                     x=-dfPos['PlateLocSide'],
@@ -89,8 +95,6 @@ def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
                     color='red',
                     fill=True
                 )
-            except:
-                pass
             sns.scatterplot(
                 data=dfPos[dfPos['TaggedPitchType'] == tipo],
                 x=-dfPos['PlateLocSide'],
@@ -100,6 +104,8 @@ def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
 
     fig.suptitle(titulo, fontsize=16, y=0.95)
     fig.subplots_adjust(left=0.05, right=0.95, bottom=0.05, top=0.9)
+
+    plt.close()
     return fig
 
 def leerDatos(rutaTrackman, rutaBateadores, rutaPitchers):
@@ -140,36 +146,27 @@ def leerDatos(rutaTrackman, rutaBateadores, rutaPitchers):
     atBats = {'home': homeAtBats, 'away': awayAtBats}
     pitchers = {'home': homePitchers, 'away': awayPitchers}
     bateadores = {'home': homeBateadores, 'away': awayBateadores}
+
     return atBats, pitchers, bateadores
 
-def saveLineUps(bateadores, rutaCSV):
-    bateadores['home'][['Bateador', 'Position', 'seasonAVG', 'seasonOPS']].rename(
+def saveLineUp(bateadores, rutaCSV, name):
+    bateadores[['Bateador', 'Position', 'seasonAVG', 'seasonOPS']].rename(
         columns={'Bateador': 'Nombre', 'Position': 'Posición', 'seasonAVG': 'AVG', 'seasonOPS': 'OPS'}
-    ).to_csv(f'{rutaCSV}/homeLineUp.csv', index=False, encoding='utf-8-sig')
+    ).to_csv(f'{rutaCSV}/lineUp/{name}LineUp.csv', index=False, encoding='utf-8-sig')
 
-    bateadores['away'][['Bateador', 'Position', 'seasonAVG', 'seasonOPS']].rename(
-        columns={'Bateador': 'Nombre', 'Position': 'Posición', 'seasonAVG': 'AVG', 'seasonOPS': 'OPS'}
-    ).to_csv(f'{rutaCSV}/awayLineUp.csv', index=False, encoding='utf-8-sig')
-
-def savePitchers(pitchers, atBats, rutaCSV):
+def savePitchers(pitchers, atBats, rutaCSV, name):
     ordenColumnas = ['Nombre', 'Entrada de inicio', 'Entradas lanzadas', 'ERA']
     pd.merge(
-        pitchers['home'][['Pitcher', 'InningsPitch', 'seasonERA']], atBats['away'].groupby('Pitcher')['Inning'].min(),
+        pitchers[['Pitcher', 'InningsPitch', 'seasonERA']], atBats.groupby('Pitcher')['Inning'].min(),
         on='Pitcher'
     ).rename(
         columns={'Pitcher': 'Nombre', 'Inning': 'Entrada de inicio', 'InningsPitch':'Entradas lanzadas', 'seasonERA': 'ERA'}
-    )[ordenColumnas].to_csv(f'{rutaCSV}/homePitchers.csv', index=False, encoding='utf-8-sig')
-    pd.merge(
-        pitchers['away'][['Pitcher', 'InningsPitch', 'seasonERA']], atBats['home'].groupby('Pitcher')['Inning'].min(),
-        on='Pitcher'
-    ).rename(
-        columns={'Pitcher': 'Nombre', 'Inning': 'Entrada de inicio', 'InningsPitch':'Entradas lanzadas', 'seasonERA': 'ERA'}
-    )[ordenColumnas].to_csv(f'{rutaCSV}/awayPitchers.csv', index=False, encoding='utf-8-sig')
+    )[ordenColumnas].to_csv(f'{rutaCSV}/pitchers/{name}Pitchers.csv', index=False, encoding='utf-8-sig')
 
 def getLineaPitcheo(pitchers, atBats):
-    homeLineaPitcheo = pd.merge(
-        pitchers['home'][['Team', 'Pitcher', 'BattersFaced', 'InningsPitch', 'runs', 'earnedRuns']],
-        atBats['away'].groupby(['Pitcher', 'BatterSide']).agg(
+    lineaPitcheo = pd.merge(
+        pitchers[['Team', 'Pitcher', 'BattersFaced', 'InningsPitch', 'runs', 'earnedRuns']],
+        atBats.groupby(['Pitcher', 'BatterSide']).agg(
             NoLanzamientos=pd.NamedAgg(column='PitchNo', aggfunc='count'),
             startInning=pd.NamedAgg(column='Inning', aggfunc='min'),
             Strikes=pd.NamedAgg(column='PitchCall', aggfunc=lambda x: np.where(
@@ -186,35 +183,30 @@ def getLineaPitcheo(pitchers, atBats):
             'Walk': 'Bases por bolas', 'runs': 'Carreras', 'earnedRuns': 'Carreras limpias'
         }
     )
-
-    awayLineaPitcheo = pd.merge(
-        pitchers['away'][['Team', 'Pitcher', 'BattersFaced', 'InningsPitch', 'runs', 'earnedRuns']],
-        atBats['home'].groupby(['Pitcher', 'BatterSide']).agg(
-            NoLanzamientos=pd.NamedAgg(column='PitchNo', aggfunc='count'),
-            startInning=pd.NamedAgg(column='Inning', aggfunc='min'),
-            Strikes=pd.NamedAgg(column='PitchCall', aggfunc=lambda x: np.where(
-                (x.str.startswith('Strike')) | (x.str.startswith('FoulBall')) | (x.str.startswith('InPlay')), 1, 0).sum()),
-            SwingStrikes=pd.NamedAgg(column='PitchCall', aggfunc=lambda x: np.where(x == 'StrikeSwinging', 1, 0).sum()),
-            Bolas=pd.NamedAgg(column='PitchCall', aggfunc=lambda x: np.where(x.str.startswith('Ball'), 1, 0).sum()),
-            Ponches=pd.NamedAgg(column='KorBB', aggfunc=lambda x: np.where(x == 'Strikeout', 1, 0).sum()),
-            Walk=pd.NamedAgg(column='KorBB', aggfunc=lambda x: np.where(x == 'Walk', 1, 0).sum())
-        ).reset_index(), on='Pitcher'
-    ).rename(
-        columns={
-            'Pitcher': 'Nombre', 'NoLanzamientos': 'No lanzamientos', 'BattersFaced': 'Bateadores enfrentados',
-            'startInning': 'Entrada de inicio', 'InningsPitch': 'Entradas lanzadas', 'SwingStrikes': 'Strikes con swing',
-            'Walk': 'Bases por bolas', 'runs': 'Carreras', 'earnedRuns': 'Carreras limpias'
-        }
-    )
-
-    lineaPitcheo = {'home': homeLineaPitcheo, 'away': awayLineaPitcheo}
 
     return lineaPitcheo
 
+def saveLineaPitcheo(lineaPitcheo, rutaCSV):
+    temp = lineaPitcheo.groupby('Nombre').agg({
+            'No lanzamientos': 'sum', 
+            'Bateadores enfrentados': 'min',
+            'Entrada de inicio': 'min',
+            'Entradas lanzadas': 'min',
+            'Strikes': 'sum',
+            'Strikes con swing': 'sum',
+            'Bolas': 'sum',
+            'Ponches': 'sum',
+            'Bases por bolas': 'sum',
+            'Carreras': 'min',
+            'Carreras limpias': 'min'
+        })
+    for index, row in temp.iterrows():
+        row.to_frame().T.to_csv(f'{rutaCSV}/lineaPitcheo/linea{index}.csv', encoding='utf-8-sig')
+
 def getDistribucionLanzamientos(lineaPitcheo, atBats):
-    homeDistribucionLanzamientos = pd.merge(
-        lineaPitcheo['home'][['Team', 'Nombre', 'BatterSide', 'No lanzamientos', 'Strikes', 'Strikes con swing', 'Bolas', 'Ponches', 'Bases por bolas']],
-        atBats['away'].groupby(['Pitcher', 'BatterSide', 'TaggedPitchType']).agg(
+    distribucionLanzamientos = pd.merge(
+        lineaPitcheo[['Team', 'Nombre', 'BatterSide', 'No lanzamientos', 'Strikes', 'Strikes con swing', 'Bolas', 'Ponches', 'Bases por bolas']],
+        atBats.groupby(['Pitcher', 'BatterSide', 'TaggedPitchType']).agg(
             Uso=pd.NamedAgg(column='PitchNo', aggfunc='count'),
             MaxSpeed= pd.NamedAgg(column='RelSpeed', aggfunc=lambda x: round(x.max(), 1)),
             AvgSpeed=pd.NamedAgg(column='RelSpeed', aggfunc=lambda x:round(x.mean(), 1)),
@@ -226,21 +218,6 @@ def getDistribucionLanzamientos(lineaPitcheo, atBats):
         ).reset_index(), left_on=['Nombre', 'BatterSide'], right_on=['Pitcher', 'BatterSide']
     ).rename(columns={'TaggedPitchType': 'Tipo lanzamiento', 'MaxSpeed': 'Velocidad maxima', 'AvgSpeed': 'Velocidad promedio'})
 
-    awayDistribucionLanzamientos = pd.merge(
-        lineaPitcheo['away'][['Team', 'Nombre', 'BatterSide', 'No lanzamientos', 'Strikes', 'Strikes con swing', 'Bolas', 'Ponches', 'Bases por bolas']],
-        atBats['home'].groupby(['Pitcher', 'BatterSide', 'TaggedPitchType']).agg(
-            Uso=pd.NamedAgg(column='PitchNo', aggfunc='count'),
-            MaxSpeed= pd.NamedAgg(column='RelSpeed', aggfunc=lambda x: round(x.max(), 1)),
-            AvgSpeed=pd.NamedAgg(column='RelSpeed', aggfunc=lambda x:round(x.mean(), 1)),
-            StrikesPorTipo=pd.NamedAgg(column='PitchCall', aggfunc=lambda x: np.where(
-                (x.str.startswith('Strike')) | (x.str.startswith('FoulBall')) | (x.str.startswith('InPlay')), 1, 0).sum()),
-            SwingStrikesPorTipo=pd.NamedAgg(column='PitchCall', aggfunc=lambda x: np.where(x == 'StrikeSwinging', 1, 0).sum()),
-            BolasPorTipo=pd.NamedAgg(column='PitchCall', aggfunc=lambda x: np.where(x.str.startswith('Ball'), 1, 0).sum()),
-            PonchesPorTipo=pd.NamedAgg(column='KorBB', aggfunc=lambda x: np.where(x == 'Strikeout', 1, 0).sum())
-        ).reset_index(), left_on=['Nombre', 'BatterSide'], right_on=['Pitcher', 'BatterSide']
-    ).rename(columns={'TaggedPitchType': 'Tipo lanzamiento', 'MaxSpeed': 'Velocidad maxima', 'AvgSpeed': 'Velocidad promedio'})
-
-    distribucionLanzamientos = pd.concat([homeDistribucionLanzamientos, awayDistribucionLanzamientos], ignore_index=True)
     distribucionLanzamientos=pd.concat(
         [
         distribucionLanzamientos, 
@@ -271,18 +248,96 @@ def getDistribucionLanzamientos(lineaPitcheo, atBats):
         (100*distribucionLanzamientos['BolasPorTipo'])/distribucionLanzamientos['Bolas'], 1)
     distribucionLanzamientos['Ponches %'] = round(
         (100*distribucionLanzamientos['PonchesPorTipo'])/distribucionLanzamientos['Ponches'], 1)
+    distribucionLanzamientos = distribucionLanzamientos.fillna(0)
+
+    return distribucionLanzamientos
+
+def saveDistribucionLanzamientos(distribucionLanzamientos, atBats, rutaCSV, rutaIMG):
+    columnas = ['Tipo lanzamiento', 'Uso', 'Porcentaje de uso', 'Velocidad maxima', 'Velocidad promedio', 
+                'Strikes %', 'Swing Strikes %', 'Bolas %', 'Ponches %']
     
-    return distribucionLanzamientos.fillna(0)
+    pitchers = distribucionLanzamientos['Nombre'].unique().tolist()
+
+    for pitcher in pitchers:
+        lados = distribucionLanzamientos[distribucionLanzamientos['Nombre'] == pitcher]['BatterSide'].unique().tolist()
+        for lado in lados:
+            nombre = pitcher.replace(' ', '').replace('.', '').strip()
+            if lado == 'Total':
+                subRuta = '/distribucionPitcheo/total/distribucion{0}{1}'
+                titulo = 'Distribución de {0} de {1}'
+                dfPos = atBats[(atBats['Pitcher'] == pitcher)]
+            elif lado == 'Left':
+                subRuta = '/distribucionPitcheo/left/distribucionVsZurdos{0}{1}'
+                titulo = 'Distribución de {0} de {1} vs bateadores izquierdos'
+                dfPos = atBats[(atBats['Pitcher'] == pitcher) & (atBats['BatterSide'] == 'Left')]
+            else:
+                subRuta = '/distribucionPitcheo/right/distribucionVsDerechos{0}{1}'
+                titulo = 'Distribución de {0} de {1} vs bateadores derechos'
+                dfPos = atBats[(atBats['Pitcher'] == pitcher) & (atBats['BatterSide'] == 'Right')]
+
+            df = distribucionLanzamientos[
+                (distribucionLanzamientos['Nombre'] == pitcher) &
+                (distribucionLanzamientos['BatterSide'] == lado)
+            ].sort_values(by='Uso', ascending=False).reset_index(drop=True)
+            df[columnas].to_csv(f'{rutaCSV}{subRuta.format('', nombre)}.csv', index=False, encoding='utf-8-sig')
+
+            distribucionImg = graficarDistribucionLanzamientos(
+                dfDist=df.rename(columns={'Porcentaje de uso': 'Porcentaje', 'Uso': 'Total'}),
+                dfPos=dfPos,
+                titulo=titulo.format('Lanzamientos', pitcher)
+            )
+            if distribucionImg is not None:
+                distribucionImg.savefig(f'{rutaIMG}{subRuta.format('', nombre)}.png', bbox_inches='tight', dpi=300)
+
+            distribucionStrikesImg = graficarDistribucionLanzamientos(
+                dfDist=df.rename(columns={'Strikes %': 'Porcentaje', 'StrikesPorTipo': 'Total'}),
+                dfPos=dfPos[(dfPos['PitchCall'].str.startswith('Strike')) |
+                            (dfPos['PitchCall'].str.startswith('FoulBall')) |
+                            (dfPos['PitchCall'].str.startswith('InPlay'))],
+                titulo=titulo.format('Strikes', pitcher)
+            )
+            if distribucionStrikesImg is not None:
+                distribucionStrikesImg.savefig(f'{rutaIMG}{subRuta.format('Strikes', nombre)}.png', bbox_inches='tight', dpi=300)
+
+            distribucionPonchesImg = graficarDistribucionLanzamientos(
+                dfDist=df.rename(columns={'Ponches %': 'Porcentaje', 'PonchesPorTipo': 'Total'}),
+                dfPos=dfPos[dfPos['KorBB'].str.startswith('Strikeout')],
+                titulo=titulo.format('Ponches', pitcher)
+            )
+            if distribucionPonchesImg is not None:
+                distribucionPonchesImg.savefig(f'{rutaIMG}{subRuta.format('Ponches', nombre)}.png', bbox_inches='tight', dpi=300)
+
+            distribucionBolasImg = graficarDistribucionLanzamientos(
+                dfDist=df.rename(columns={'Bolas %': 'Porcentaje', 'BolasPorTipo': 'Total'}),
+                dfPos=dfPos[dfPos['PitchCall'].str.startswith('Ball')],
+                titulo=titulo.format('Bolas', pitcher)
+            )
+            if distribucionBolasImg is not None:
+                distribucionBolasImg.savefig(f'{rutaIMG}{subRuta.format('Bolas', nombre)}.png', bbox_inches='tight', dpi=300)
 
 if __name__ == '__main__':
     rutaTrackman = 'data/20250617-EstadioAlfredo-1.csv'
     rutaBateadores = 'data/bateadores.csv'
     rutaPitchers = 'data/pitchers.csv'
     rutaCSV = 'reporte/csv'
+    rutaIMG = 'reporte/img'
+
     atBats, pitchers, bateadores = leerDatos(rutaTrackman, rutaBateadores, rutaPitchers)
-    #saveLineUps(bateadores, rutaCSV)
-    #savePitchers(pitchers, atBats, rutaCSV)
-    lineaPitcheo = getLineaPitcheo(pitchers, atBats)
-    distribucionLanzamientos = getDistribucionLanzamientos(lineaPitcheo, atBats)
-    lineaPitcheo['home'].to_csv('lineaPitcheoHome.csv', index=False, encoding='utf-8-sig')
-    distribucionLanzamientos.to_csv('distribucionLanzamientos.csv', index=False, encoding='utf-8-sig')
+
+    saveLineUp(bateadores['home'], rutaCSV, 'home')
+    saveLineUp(bateadores['away'], rutaCSV, 'away')
+
+    savePitchers(pitchers['home'], atBats['away'], rutaCSV, 'home')
+    savePitchers(pitchers['away'], atBats['home'], rutaCSV, 'away')
+
+    lineaPitcheo = {}
+    lineaPitcheo['home'] = getLineaPitcheo(pitchers['home'], atBats['away'])
+    lineaPitcheo['away'] = getLineaPitcheo(pitchers['away'], atBats['home'])
+    saveLineaPitcheo(lineaPitcheo['home'], rutaCSV)
+    saveLineaPitcheo(lineaPitcheo['away'], rutaCSV)
+
+    distribucionLanzamientos = {}
+    distribucionLanzamientos['home'] = getDistribucionLanzamientos(lineaPitcheo['home'], atBats['away'])
+    distribucionLanzamientos['away'] = getDistribucionLanzamientos(lineaPitcheo['away'], atBats['home'])
+    saveDistribucionLanzamientos(distribucionLanzamientos['home'], atBats['away'], rutaCSV, rutaIMG)
+    saveDistribucionLanzamientos(distribucionLanzamientos['away'], atBats['home'], rutaCSV, rutaIMG)
