@@ -112,6 +112,42 @@ def graficarDistribucionLanzamientos(dfDist, dfPos, titulo):
     plt.close()
     return fig
 
+def graficarSituacionPitcher(df, total, titulo):
+    colores = {'Ponche': '#001219', 'Base por bolas': '#005F73', 'Base por golpe': '#0A9396', 
+               'Hit': '#94D2BD', 'Out': '#E9D8A6', 'Error': '#EE9B00', 'Bola ocupada': '#CA6702', 
+               'Sacrificio': '#BB3E03', 'Otro': '#9B2226'}
+    fig, ax = plt.subplots(figsize=(5.1, 3))
+    plot = ax.pie(
+        df['Porcentaje'], 
+        startangle=90,
+        colors=df['index'].map(colores).to_list(),
+        wedgeprops=dict(width=0.3),
+        radius=0.7,
+        pctdistance=1.4,
+        labels=None
+    )
+    ax.text(
+        0, 0,
+        total,
+        ha='center', va='center',
+        fontsize=12, weight='bold'
+    )
+    ax.legend(
+        plot[0], 
+        [f"{l} ({p:.1f}%)" for l, p in zip(df['index'], df['Porcentaje'])],
+        loc="lower center",
+        ncol=2,
+        frameon=False,
+        fontsize='small'
+    )
+
+    fig.suptitle(titulo, fontsize=16, y=0.95, x=0.2)
+    plt.subplots_adjust(left=0.3)
+
+    plt.close()
+
+    return fig
+
 def leerDatos(rutaTrackman, rutaBateadores, rutaPitchers):
     df = pd.read_csv(rutaTrackman, sep=',', encoding='utf-8')
     df['Pitcher'] = df['Pitcher'].str.split(', ').apply(lambda x: x[1] + ' ' + x[0])
@@ -319,79 +355,58 @@ def saveDistribucionLanzamientos(distribucionLanzamientos, atBats, rutaCSV, ruta
             if distribucionBolasImg is not None:
                 distribucionBolasImg.savefig(f'{rutaIMG}{subRuta.format('Bolas', nombre)}.png', bbox_inches='tight', dpi=300)
 
-def getSituacionRiesgo(atBats):
-    resultadoSituacionRiesgo = pd.merge(
+def getSituacionPitcher(atBats, tipo):
+    if tipo == 'Riesgo':
+        bolas = 3
+        strikes = 0
+    else:
+        bolas = 0
+        strikes = 2
+    resultadoSituacionPitcher = pd.merge(
         atBats[
-            (atBats['Balls'] == 3) & (atBats['Strikes'] == 0)
+            (atBats['Balls'] == bolas) & (atBats['Strikes'] == strikes)
         ][['Inning', 'PAofInning', 'Pitcher']],
         atBats[['Inning', 'PAofInning', 'PitchCall', 'KorBB', 'PlayResult']],
         on=['Inning', 'PAofInning']
     ).groupby(['Inning', 'PAofInning']).last().reset_index()
 
-    resultadoSituacionRiesgo['Resultado'] = np.where(
-        resultadoSituacionRiesgo['KorBB'] == 'Strikeout', 'Ponche',
-        np.where(resultadoSituacionRiesgo['KorBB'] == 'Walk', 'Base por bolas',
-        np.where(resultadoSituacionRiesgo['PitchCall'] == 'HitByPitch', 'Base por golpe', 
-        np.where((resultadoSituacionRiesgo['PlayResult'] == 'Single') |
-                (resultadoSituacionRiesgo['PlayResult'] == 'Double') |
-                (resultadoSituacionRiesgo['PlayResult'] == 'Triple') |
-                (resultadoSituacionRiesgo['PlayResult'] == 'HomeRun'), 'Hit',
-        np.where(resultadoSituacionRiesgo['PlayResult'] == 'Out', 'Out',
-        np.where(resultadoSituacionRiesgo['PlayResult'] == 'Error', 'Error', 
-        np.where(resultadoSituacionRiesgo['PlayResult'] == 'FieldersChoice', 'Bola ocupada', 
-        np.where(resultadoSituacionRiesgo['PlayResult'] == 'Sacrifice', 'Sacrificio', '')
+    resultadoSituacionPitcher['Resultado'] = np.where(
+        resultadoSituacionPitcher['KorBB'] == 'Strikeout', 'Ponche',
+        np.where(resultadoSituacionPitcher['KorBB'] == 'Walk', 'Base por bolas',
+        np.where(resultadoSituacionPitcher['PitchCall'] == 'HitByPitch', 'Base por golpe', 
+        np.where((resultadoSituacionPitcher['PlayResult'] == 'Single') |
+                (resultadoSituacionPitcher['PlayResult'] == 'Double') |
+                (resultadoSituacionPitcher['PlayResult'] == 'Triple') |
+                (resultadoSituacionPitcher['PlayResult'] == 'HomeRun'), 'Hit',
+        np.where(resultadoSituacionPitcher['PlayResult'] == 'Out', 'Out',
+        np.where(resultadoSituacionPitcher['PlayResult'] == 'Error', 'Error', 
+        np.where(resultadoSituacionPitcher['PlayResult'] == 'FieldersChoice', 'Bola ocupada', 
+        np.where(resultadoSituacionPitcher['PlayResult'] == 'Sacrifice', 'Sacrificio', '')
         ))))))
     )
 
-    resultadoSituacionRiesgo = resultadoSituacionRiesgo[['Pitcher', 'Resultado']]
-    resultadoSituacionRiesgo = pd.get_dummies(resultadoSituacionRiesgo, columns=['Resultado'], dtype=int)
-    resultadoSituacionRiesgo['Total'] = resultadoSituacionRiesgo.groupby(['Pitcher'])['Pitcher'].transform('count')
-    resultadoSituacionRiesgo = resultadoSituacionRiesgo.groupby('Pitcher').apply(lambda x: round(x.mean()*100, 1)).reset_index()
-    resultadoSituacionRiesgo['Total'] = resultadoSituacionRiesgo['Total']/100
-    newColumns = [x.replace('Resultado_', '') for x in resultadoSituacionRiesgo.columns]
-    resultadoSituacionRiesgo = resultadoSituacionRiesgo.rename(columns=dict(zip(resultadoSituacionRiesgo.columns, newColumns)))
+    resultadoSituacionPitcher = resultadoSituacionPitcher[['Pitcher', 'Resultado']]
+    resultadoSituacionPitcher = pd.get_dummies(resultadoSituacionPitcher, columns=['Resultado'], dtype=int)
+    resultadoSituacionPitcher['Total'] = resultadoSituacionPitcher.groupby(['Pitcher'])['Pitcher'].transform('count')
+    resultadoSituacionPitcher = resultadoSituacionPitcher.groupby('Pitcher').apply(lambda x: round(x.mean()*100, 1)).reset_index()
+    resultadoSituacionPitcher['Total'] = resultadoSituacionPitcher['Total']/100
+    newColumns = [x.replace('Resultado_', '') for x in resultadoSituacionPitcher.columns]
+    resultadoSituacionPitcher = resultadoSituacionPitcher.rename(columns=dict(zip(resultadoSituacionPitcher.columns, newColumns)))
 
-    return resultadoSituacionRiesgo
+    return resultadoSituacionPitcher
 
-def saveSituacionRiesgo(situacionRiesgo, rutaIMG):
-    pitchers = situacionRiesgo['Pitcher'].unique().tolist()
+def saveSituacionPitcher(situacion, rutaIMG, tipo):
+    pitchers = situacion['Pitcher'].unique().tolist()
     for pitcher in pitchers:
         nombre = pitcher.replace(' ', '').replace('.', '').strip()
-        subRuta = f'/situacionRiesgo/situacionRiesgo{nombre}.png'
-        titulo = f'Situaciónes de riesgo de {pitcher}'
-        temp = situacionRiesgo[situacionRiesgo['Pitcher'] == pitcher].reset_index(drop=True)
+        subRuta = f'/situacion{tipo}/situacion{tipo}{nombre}.png'
+        titulo = f'Situaciónes de {tipo} de {pitcher}'
+        temp = situacion[situacion['Pitcher'] == pitcher].reset_index(drop=True)
         total = int(temp['Total'].to_numpy()[0])
         temp = temp.drop(columns=['Total', 'Pitcher']).T.rename(columns={0: 'Porcentaje'})
         temp = temp[temp['Porcentaje'] > 0].reset_index()
 
-        fig, ax = plt.subplots(figsize=(5.1, 3))
-        plot = ax.pie(
-            temp['Porcentaje'], 
-            startangle=90,
-            wedgeprops=dict(width=0.3),
-            radius=0.7,
-            pctdistance=1.4,
-            labels=None
-        )
-        ax.text(
-            0, 0,
-            total,
-            ha='center', va='center',
-            fontsize=12, weight='bold'
-        )
-        ax.legend(
-            plot[0], 
-            [f"{l} ({p:.1f}%)" for l, p in zip(temp['index'], temp['Porcentaje'])],
-            loc="lower center",
-            ncol=2,
-            frameon=False,
-            fontsize='small'
-        )
-
-        fig.suptitle(titulo, fontsize=16, y=0.95, x=0.2)
-        plt.subplots_adjust(left=0.3)
-
-        plt.close()
+        fig = graficarSituacionPitcher(temp, total, titulo)
         fig.savefig(f'{rutaIMG}{subRuta}', bbox_inches='tight', dpi=300)
 
 if __name__ == '__main__':
@@ -422,7 +437,14 @@ if __name__ == '__main__':
     #saveDistribucionLanzamientos(distribucionLanzamientos['away'], atBats['home'], rutaCSV, rutaIMG)
 
     situacionRiesgo = {}
-    situacionRiesgo['home'] = getSituacionRiesgo(atBats['away'])
-    situacionRiesgo['away'] = getSituacionRiesgo(atBats['home'])
-    saveSituacionRiesgo(situacionRiesgo['home'], rutaIMG)
-    saveSituacionRiesgo(situacionRiesgo['away'], rutaIMG)
+    situacionRiesgo['home'] = getSituacionPitcher(atBats['away'], 'Riesgo')
+    situacionRiesgo['away'] = getSituacionPitcher(atBats['home'], 'Riesgo')
+    #saveSituacionPitcher(situacionRiesgo['home'], rutaIMG, 'Riesgo')
+    #saveSituacionPitcher(situacionRiesgo['away'], rutaIMG, 'Riesgo')
+
+    situacionVentaja = {}
+    situacionVentaja['home'] = getSituacionPitcher(atBats['away'], 'Ventaja')
+    situacionVentaja['away'] = getSituacionPitcher(atBats['home'], 'Ventaja')
+    #saveSituacionPitcher(situacionVentaja['home'], rutaIMG, 'Ventaja')
+    #saveSituacionPitcher(situacionVentaja['away'], rutaIMG, 'Ventaja')
+                                                          
