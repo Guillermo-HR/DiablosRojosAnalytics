@@ -148,11 +148,54 @@ def graficarSituacionPitcher(df, total, titulo):
 
     return fig
 
+def getZona(x, y, sz_top=3.5, sz_bot=1.5):
+    sz_right = 0.708
+    sz_left = -sz_right
+    sz_midle = (sz_top - sz_bot) / 2 + sz_bot
+    hor_delta = (sz_right * 2) / 3
+    vert_delta = (sz_top - sz_bot) / 3
+
+    if ((y >= sz_top and x < 0) or (y >= sz_midle and x < sz_left)): return 11
+    if ((y >= sz_top and x >= 0) or (y >= sz_midle and x >= sz_right)): return 12
+    if ((y < sz_bot and x < 0) or (y < sz_midle and x < sz_left)): return 13
+    if ((y < sz_bot and x >= 0) or (y < sz_midle and x >= sz_right)): return 14
+
+    if (y >= (sz_top - vert_delta)): zona = 0
+    elif (y >= (sz_bot + vert_delta)): zona = 3
+    else: zona = 6
+
+    if (x < (sz_left + hor_delta)): zona += 1
+    elif (x < (sz_right - hor_delta)): zona += 2
+    else: zona += 3
+    return zona
+
 def leerDatos(rutaTrackman, rutaBateadores, rutaPitchers):
     df = pd.read_csv(rutaTrackman, sep=',', encoding='utf-8')
     df['Pitcher'] = df['Pitcher'].str.split(', ').apply(lambda x: x[1] + ' ' + x[0])
     df['Batter'] = df['Batter'].str.split(', ').apply(lambda x: x[1] + ' ' + x[0])
     df['TaggedPitchType'] = df['TaggedPitchType'].str.replace('FourSeamFastBall', 'FF', regex=True)
+    df['HomeScore'] = np.where(df['Top/Bottom'] == 'Bottom', df['RunsScored'], 0)
+    df['AwayScore'] = np.where(df['Top/Bottom'] == 'Top', df['RunsScored'], 0)
+    df['HomeScore'] = df['HomeScore'].cumsum().shift(1).fillna(0)
+    df['AwayScore'] = df['AwayScore'].cumsum().shift(1).fillna(0)
+    df['RunDif'] = np.where(df['Top/Bottom'] == 'Top', df['HomeScore'] - df['AwayScore'], df['AwayScore'] - df['HomeScore'])
+    df['PitchZone'] = df.apply(lambda row: getZona(row['PlateLocSide'], row['PlateLocHeight']), axis=1)
+    df['PAResult'] = np.where(
+        df['KorBB'] == 'Strikeout', 'Ponche',
+        np.where(df['KorBB'] == 'Walk', 'Base por bolas',
+        np.where(df['PitchCall'] == 'HitByPitch', 'Base por golpe', 
+        np.where((df['PlayResult'] == 'Single') |
+                (df['PlayResult'] == 'Double') |
+                (df['PlayResult'] == 'Triple') |
+                (df['PlayResult'] == 'HomeRun'), 'Hit',
+        np.where(df['PlayResult'] == 'Out', 'Out',
+        np.where(df['PlayResult'] == 'Error', 'Error', 
+        np.where(df['PlayResult'] == 'FieldersChoice', 'Bola ocupada', 
+        np.where(df['PlayResult'] == 'Sacrifice', 'Sacrificio', pd.NA)
+        ))))))
+    )
+    df['PAResult'] = df.groupby(['Inning', 'Top/Bottom', 'PAofInning'])['PAResult'].transform('last')
+
     homeAtBats = df[df['Top/Bottom'] == 'Bottom'].copy()
     awayAtBats = df[df['Top/Bottom'] == 'Top'].copy()
 
@@ -362,35 +405,14 @@ def getSituacionPitcher(atBats, tipo):
     else:
         bolas = 0
         strikes = 2
-    resultadoSituacionPitcher = pd.merge(
-        atBats[
-            (atBats['Balls'] == bolas) & (atBats['Strikes'] == strikes)
-        ][['Inning', 'PAofInning', 'Pitcher']],
-        atBats[['Inning', 'PAofInning', 'PitchCall', 'KorBB', 'PlayResult']],
-        on=['Inning', 'PAofInning']
-    ).groupby(['Inning', 'PAofInning']).last().reset_index()
+    resultadoSituacionPitcher = atBats[(atBats['Balls'] == 0) & (atBats['Strikes'] == 2)][['Inning', 'PAofInning', 'Pitcher', 'PAResult']]
+    resultadoSituacionPitcher = resultadoSituacionPitcher.groupby(['Inning', 'PAofInning']).last().reset_index()
 
-    resultadoSituacionPitcher['Resultado'] = np.where(
-        resultadoSituacionPitcher['KorBB'] == 'Strikeout', 'Ponche',
-        np.where(resultadoSituacionPitcher['KorBB'] == 'Walk', 'Base por bolas',
-        np.where(resultadoSituacionPitcher['PitchCall'] == 'HitByPitch', 'Base por golpe', 
-        np.where((resultadoSituacionPitcher['PlayResult'] == 'Single') |
-                (resultadoSituacionPitcher['PlayResult'] == 'Double') |
-                (resultadoSituacionPitcher['PlayResult'] == 'Triple') |
-                (resultadoSituacionPitcher['PlayResult'] == 'HomeRun'), 'Hit',
-        np.where(resultadoSituacionPitcher['PlayResult'] == 'Out', 'Out',
-        np.where(resultadoSituacionPitcher['PlayResult'] == 'Error', 'Error', 
-        np.where(resultadoSituacionPitcher['PlayResult'] == 'FieldersChoice', 'Bola ocupada', 
-        np.where(resultadoSituacionPitcher['PlayResult'] == 'Sacrifice', 'Sacrificio', '')
-        ))))))
-    )
-
-    resultadoSituacionPitcher = resultadoSituacionPitcher[['Pitcher', 'Resultado']]
-    resultadoSituacionPitcher = pd.get_dummies(resultadoSituacionPitcher, columns=['Resultado'], dtype=int)
+    resultadoSituacionPitcher = pd.get_dummies(resultadoSituacionPitcher, columns=['PAResult'], dtype=int)
     resultadoSituacionPitcher['Total'] = resultadoSituacionPitcher.groupby(['Pitcher'])['Pitcher'].transform('count')
     resultadoSituacionPitcher = resultadoSituacionPitcher.groupby('Pitcher').apply(lambda x: round(x.mean()*100, 1)).reset_index()
     resultadoSituacionPitcher['Total'] = resultadoSituacionPitcher['Total']/100
-    newColumns = [x.replace('Resultado_', '') for x in resultadoSituacionPitcher.columns]
+    newColumns = [x.replace('PAResult_', '') for x in resultadoSituacionPitcher.columns]
     resultadoSituacionPitcher = resultadoSituacionPitcher.rename(columns=dict(zip(resultadoSituacionPitcher.columns, newColumns)))
 
     return resultadoSituacionPitcher
@@ -408,6 +430,39 @@ def saveSituacionPitcher(situacion, rutaIMG, tipo):
 
         fig = graficarSituacionPitcher(temp, total, titulo)
         fig.savefig(f'{rutaIMG}{subRuta}', bbox_inches='tight', dpi=300)
+
+def saveSecuenciaPitcheo(atBats, bateadores, rutaCSV, Npitches=4):
+    secuenciaPitcheos = pd.merge(
+        atBats[atBats['PitchofPA'] <= Npitches][
+            ['Inning', 'PAofInning', 'PitchofPA', 'Pitcher', 'Batter', 'BatterSide', 'RunDif', 
+            'TaggedPitchType', 'PitchZone', 'PAResult']],
+        bateadores[['Bateador', 'seasonAVG']].rename(columns={'Bateador': 'Batter'}),
+        on='Batter', how='left'
+    )
+
+    secuenciaPitcheos['PitchInfo'] = secuenciaPitcheos['TaggedPitchType'] + ' ' + secuenciaPitcheos['PitchZone'].astype(str)
+
+    secuenciaPitcheos = secuenciaPitcheos.pivot_table(
+        index=['Inning', 'PAofInning', 'Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', 'PAResult'],
+        columns='PitchofPA',
+        values='PitchInfo',
+        aggfunc='last'
+    ).sort_values(by=['Inning', 'PAofInning']).reset_index().drop(columns=['Inning', 'PAofInning'])
+    secuenciaPitcheos.columns = ['Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', 'PAResult', '1', '2', '3', '4']
+    secuenciaPitcheos = secuenciaPitcheos[
+        ['Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', '1', '2', '3', '4', 'PAResult']
+    ].sort_values(by=['BatterSide', 'seasonAVG']).reset_index(drop=True)
+
+    pitchers = secuenciaPitcheos['Pitcher'].unique().tolist()
+    subruta = '/secuenciaPitcheo/{0}/secuencia{1}Vs{2}.csv'
+    for pitcher in pitchers:
+        nombre = pitcher.replace(' ', '').replace('.', '').strip()
+        secuenciaPitcheos[(secuenciaPitcheos['Pitcher'] == pitcher) & 
+                          (secuenciaPitcheos['BatterSide'] == 'Left')
+                         ].to_csv(f'{rutaCSV}{subruta.format('left', nombre, 'Zurdos')}', index=False, encoding='utf-8-sig')
+        secuenciaPitcheos[(secuenciaPitcheos['Pitcher'] == pitcher) &
+                          (secuenciaPitcheos['BatterSide'] == 'Right')
+                         ].to_csv(f'{rutaCSV}{subruta.format('right', nombre, 'Derechos')}', index=False, encoding='utf-8-sig')
 
 if __name__ == '__main__':
     rutaTrackman = 'data/20250617-EstadioAlfredo-1.csv'
@@ -447,4 +502,7 @@ if __name__ == '__main__':
     situacionVentaja['away'] = getSituacionPitcher(atBats['home'], 'Ventaja')
     #saveSituacionPitcher(situacionVentaja['home'], rutaIMG, 'Ventaja')
     #saveSituacionPitcher(situacionVentaja['away'], rutaIMG, 'Ventaja')
+
+    saveSecuenciaPitcheo(atBats['home'], bateadores['home'], rutaCSV)
+    saveSecuenciaPitcheo(atBats['away'], bateadores['away'], rutaCSV)
                                                           
