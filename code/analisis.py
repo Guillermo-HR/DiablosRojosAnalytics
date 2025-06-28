@@ -451,7 +451,10 @@ def saveSecuenciaPitcheo(atBats, bateadores, rutaCSV, Npitches=4):
     secuenciaPitcheos.columns = ['Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', 'PAResult', '1', '2', '3', '4']
     secuenciaPitcheos = secuenciaPitcheos[
         ['Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', '1', '2', '3', '4', 'PAResult']
-    ].sort_values(by=['BatterSide', 'seasonAVG']).reset_index(drop=True)
+    ].sort_values(by=['BatterSide', 'seasonAVG']).reset_index(drop=True).rename(
+        columns={'Batter': 'Bateador', 'seasonAVG': 'AVG', 
+                 'RunDif': 'Diferencia de carreras', 'PAResult': 'Resultado del turno'}
+    )
 
     pitchers = secuenciaPitcheos['Pitcher'].unique().tolist()
     subruta = '/secuenciaPitcheo/{0}/secuencia{1}Vs{2}.csv'
@@ -459,10 +462,12 @@ def saveSecuenciaPitcheo(atBats, bateadores, rutaCSV, Npitches=4):
         nombre = pitcher.replace(' ', '').replace('.', '').strip()
         secuenciaPitcheos[(secuenciaPitcheos['Pitcher'] == pitcher) & 
                           (secuenciaPitcheos['BatterSide'] == 'Left')
-                         ].to_csv(f'{rutaCSV}{subruta.format('left', nombre, 'Zurdos')}', index=False, encoding='utf-8-sig')
+                         ].drop(columns=['Pitcher', 'BatterSide']
+                                ).to_csv(f'{rutaCSV}{subruta.format('left', nombre, 'Zurdos')}', index=False, encoding='utf-8-sig')
         secuenciaPitcheos[(secuenciaPitcheos['Pitcher'] == pitcher) &
                           (secuenciaPitcheos['BatterSide'] == 'Right')
-                         ].to_csv(f'{rutaCSV}{subruta.format('right', nombre, 'Derechos')}', index=False, encoding='utf-8-sig')
+                         ].drop(columns=['Pitcher', 'BatterSide']
+                                ).to_csv(f'{rutaCSV}{subruta.format('right', nombre, 'Derechos')}', index=False, encoding='utf-8-sig')
 
 if __name__ == '__main__':
     rutaTrackman = 'data/20250617-EstadioAlfredo-1.csv'
