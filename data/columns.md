@@ -25,7 +25,7 @@
 |System|System in which the game was played in front of||
 
 
-## Columnas que se van a usar
+# Columnas que se van a usar
 |Columna|Descripcion|Valores|Revisar|
 |---|---|---|---|
 |PitchNo|Chronological rank of the pitch in the game. Pitch number n is the nth pitch of the game|1 to N||
@@ -90,3 +90,12 @@ m/s^2|X|
 |HomeTeam|The designated home team shortname for the game. Always in the field first|||
 |AwayTeam|The designated away team shortname for the game. Always bats fist|||
 |Catcher|Name of the catcher for this pitch|Last, First||
+
+# Columnas creadas
+|Columna|Descripcion|Valores|
+|---|---|---|
+|HomeScore|Score of the home team before the pitch is thrown|0 to N|
+|AwayScore|Score of the away team before the pitch is thrown|0 to N|
+|RunDif|Runs diference between the pitching team and the batting team before the pitch is thrown|0 to N|
+|PitchLocation|The location of the pitch based on PlateLocSide and PlateLocHeight|1-9, 11-14|
+|PAResult|Either KorBB, PitchCall or PlayResult depending on which column contains the result of the plate appearance|Ponche, Base por bolas, Hit, Out, Error, Bola ocupada, Null| 
