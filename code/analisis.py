@@ -431,16 +431,21 @@ def saveSituacionPitcher(situacion, rutaIMG, tipo):
         fig = graficarSituacionPitcher(temp, total, titulo)
         fig.savefig(f'{rutaIMG}{subRuta}', bbox_inches='tight', dpi=300)
 
-def saveSecuenciaPitcheo(atBats, bateadores, rutaCSV, Npitches=4):
+def saveSecuenciaPitcheo(atBats, bateadores, rutaCSV, Npitches=6):
     secuenciaPitcheos = pd.merge(
         atBats[atBats['PitchofPA'] <= Npitches][
             ['Inning', 'PAofInning', 'PitchofPA', 'Pitcher', 'Batter', 'BatterSide', 'RunDif', 
-            'TaggedPitchType', 'PitchZone', 'PAResult']],
+            'TaggedPitchType', 'PitchZone', 'PAResult', 'PitchCall']],
         bateadores[['Bateador', 'seasonAVG']].rename(columns={'Bateador': 'Batter'}),
         on='Batter', how='left'
     )
 
     secuenciaPitcheos['PitchInfo'] = secuenciaPitcheos['TaggedPitchType'] + ' ' + secuenciaPitcheos['PitchZone'].astype(str)
+    secuenciaPitcheos['PitchInfo'] = secuenciaPitcheos['PitchInfo'] + np.where(
+        secuenciaPitcheos['PitchCall'].str.startswith('Strike'), ': Strike',
+        np.where(secuenciaPitcheos['PitchCall'].str.startswith('Ball'), ': Bola', 
+        np.where(secuenciaPitcheos['PitchCall'].str.startswith('Foul'), ': Foul',''
+        )))
 
     secuenciaPitcheos = secuenciaPitcheos.pivot_table(
         index=['Inning', 'PAofInning', 'Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', 'PAResult'],
@@ -448,9 +453,10 @@ def saveSecuenciaPitcheo(atBats, bateadores, rutaCSV, Npitches=4):
         values='PitchInfo',
         aggfunc='last'
     ).sort_values(by=['Inning', 'PAofInning']).reset_index().drop(columns=['Inning', 'PAofInning'])
-    secuenciaPitcheos.columns = ['Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', 'PAResult', '1', '2', '3', '4']
+    pitchNo = [str(i) for i in range(1, Npitches + 1)]
+    secuenciaPitcheos.columns = ['Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', 'PAResult'] + pitchNo
     secuenciaPitcheos = secuenciaPitcheos[
-        ['Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', '1', '2', '3', '4', 'PAResult']
+        ['Pitcher', 'Batter', 'BatterSide', 'seasonAVG', 'RunDif', 'PAResult'] + pitchNo
     ].sort_values(by=['BatterSide', 'seasonAVG']).reset_index(drop=True).rename(
         columns={'Batter': 'Bateador', 'seasonAVG': 'AVG', 
                  'RunDif': 'Diferencia de carreras', 'PAResult': 'Resultado del turno'}
