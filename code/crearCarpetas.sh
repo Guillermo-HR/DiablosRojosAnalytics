@@ -21,6 +21,10 @@ mkdir ../reporte/csv/lineaPitcheo
 mkdir ../reporte/csv/lineUp
 # Carpeta para pitchers
 mkdir ../reporte/csv/pitchers
+# Carpeta para secuencia de pitcheos
+mkdir ../reporte/csv/secuenciaPitcheo
+mkdir ../reporte/csv/secuenciaPitcheo/left
+mkdir ../reporte/csv/secuenciaPitcheo/right
 
 # Carpeta para img
 mkdir ../reporte/img
