@@ -116,7 +116,7 @@ def graficarSituacionPitcher(df, total, titulo):
     colores = {'Ponche': '#001219', 'Base por bolas': '#005F73', 'Base por golpe': '#0A9396', 
                'Hit': '#94D2BD', 'Out': '#E9D8A6', 'Error': '#EE9B00', 'Bola ocupada': '#CA6702', 
                'Sacrificio': '#BB3E03', 'Otro': '#9B2226'}
-    fig, ax = plt.subplots(figsize=(5.1, 3))
+    fig, ax = plt.subplots(figsize=(3, 3))
     plot = ax.pie(
         df['Porcentaje'], 
         startangle=90,
@@ -148,7 +148,43 @@ def graficarSituacionPitcher(df, total, titulo):
 
     return fig
 
-def getZona(x, y, sz_top=3.5, sz_bot=1.5):
+def graficarCampo(ax=None, rightField=325, centerField = 400, leftField=325):
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5, 6))
+    firstBaseX = 90 * np.cos(np.radians(45))
+    firstBaseY = 90 * np.sin(np.radians(45))
+    secondBaseY = np.sqrt(2*(90**2))
+    thirdBaseX = -firstBaseX
+    thirdBaseY = firstBaseY
+    x = [0, firstBaseX, 0, thirdBaseX, 0]
+    y = [0, firstBaseY, secondBaseY, thirdBaseY, 0]
+    rightFieldX = rightField * np.cos(np.radians(45))
+    righttFieldY = rightField * np.sin(np.radians(45))
+    leftFieldX = leftField * np.cos(np.radians(135))
+    leftFieldY = leftField * np.sin(np.radians(135))
+    
+    
+    plt.plot(x, y, color='black', lw=2, marker=(4, 0, 90), markersize=10)
+    plt.plot([0, rightFieldX], [0, righttFieldY], color='black', lw=2)
+    plt.plot([0, leftFieldX], [0, leftFieldY], color='black', lw=2)
+
+    curva = np.poly1d(np.polyfit([leftFieldX, 0, rightFieldX], [leftFieldY, centerField, righttFieldY], 2))
+    x_curve = np.linspace(leftFieldX, rightFieldX, 100)
+    y_curve = curva(x_curve)
+    plt.plot(x_curve, y_curve, color='black', lw=2)
+
+    ylim = centerField * 1.2
+    xlim = (ylim + 10) / 2
+    ax.set_xlim(-xlim, xlim)
+    ax.set_ylim(-10, ylim)
+
+    sns.set_style('white')
+    sns.despine(right=True, top=True, left=True, bottom=True)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    return ax
+
+def getZonaPitcheo(x, y, sz_top=3.5, sz_bot=1.5):
     sz_right = 0.708
     sz_left = -sz_right
     sz_midle = (sz_top - sz_bot) / 2 + sz_bot
@@ -179,7 +215,7 @@ def leerDatos(rutaTrackman, rutaBateadores, rutaPitchers):
     df['HomeScore'] = df['HomeScore'].cumsum().shift(1).fillna(0)
     df['AwayScore'] = df['AwayScore'].cumsum().shift(1).fillna(0)
     df['RunDif'] = np.where(df['Top/Bottom'] == 'Top', df['HomeScore'] - df['AwayScore'], df['AwayScore'] - df['HomeScore'])
-    df['PitchZone'] = df.apply(lambda row: getZona(row['PlateLocSide'], row['PlateLocHeight']), axis=1)
+    df['PitchZone'] = df.apply(lambda row: getZonaPitcheo(row['PlateLocSide'], row['PlateLocHeight']), axis=1).astype('Int64')
     df['PAResult'] = np.where(
         df['KorBB'] == 'Strikeout', 'Ponche',
         np.where(df['KorBB'] == 'Walk', 'Base por bolas',
@@ -405,8 +441,8 @@ def getSituacionPitcher(atBats, tipo):
     else:
         bolas = 0
         strikes = 2
-    resultadoSituacionPitcher = atBats[(atBats['Balls'] == 0) & (atBats['Strikes'] == 2)][['Inning', 'PAofInning', 'Pitcher', 'PAResult']]
-    resultadoSituacionPitcher = resultadoSituacionPitcher.groupby(['Inning', 'PAofInning']).last().reset_index()
+    resultadoSituacionPitcher = atBats[(atBats['Balls'] == bolas) & (atBats['Strikes'] == strikes)][['Inning', 'PAofInning', 'Pitcher', 'PAResult']]
+    resultadoSituacionPitcher = resultadoSituacionPitcher.groupby(['Inning', 'PAofInning']).last()
 
     resultadoSituacionPitcher = pd.get_dummies(resultadoSituacionPitcher, columns=['PAResult'], dtype=int)
     resultadoSituacionPitcher['Total'] = resultadoSituacionPitcher.groupby(['Pitcher'])['Pitcher'].transform('count')
@@ -514,6 +550,6 @@ if __name__ == '__main__':
     #saveSituacionPitcher(situacionVentaja['home'], rutaIMG, 'Ventaja')
     #saveSituacionPitcher(situacionVentaja['away'], rutaIMG, 'Ventaja')
 
-    saveSecuenciaPitcheo(atBats['home'], bateadores['home'], rutaCSV)
-    saveSecuenciaPitcheo(atBats['away'], bateadores['away'], rutaCSV)
+    #saveSecuenciaPitcheo(atBats['home'], bateadores['home'], rutaCSV)
+    #saveSecuenciaPitcheo(atBats['away'], bateadores['away'], rutaCSV)
                                                           
